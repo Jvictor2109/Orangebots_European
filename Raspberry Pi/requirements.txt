@@ -1,0 +1,21 @@
+# ── Dependências principais para o Robot Maze Rescue ──
+# Instale em um ambiente virtual (venv) para evitar quebrar o Python do sistema.
+
+# Comunicação serial com o ESP32
+pyserial>=3.5
+
+# Comunicação I2C para a IMU (ICM20600 / AK09918)
+smbus2>=0.4.3
+
+# Visão Computacional e Processamento Gráfico
+numpy>=1.21.0
+opencv-python>=4.5.0
+Pillow>=9.0.0
+
+# Controlo de GPIO (caso use pins de sinal digital directos na RPi)
+pigpio>=1.78
+
+# NOTA SOBRE A CÂMARA (picamera2):
+# A biblioteca picamera2 é uma biblioteca de sistema nativa da Raspberry Pi Ltd.
+# Geralmente, a melhor forma de a utilizar num ambiente virtual (venv) é criar 
+# o ambiente com a flag --system-site-packages para que ele herde a instalação nativa.
