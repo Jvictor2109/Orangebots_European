@@ -30,7 +30,7 @@ TURN_TOLERANCE   = 10.0      # graus — critério de paragem
 TURN_SLOW_ZONE   = 50.0     # graus — zona de desaceleração
 TURN_SPEED_FAST  = 25
 TURN_SPEED_SLOW  = 20
-TURN_SETTLED_CYCLES = 5     # Ciclos consecutivos dentro de tolerância para confirmar
+TURN_SETTLED_CYCLES = 3     # Ciclos consecutivos dentro de tolerância para confirmar
 TURN_TIMEOUT     = 8.0      # s — proteção contra rotação infinita
 
 # ── Rampa ─────────────────────────────────────────────────────────────────────
