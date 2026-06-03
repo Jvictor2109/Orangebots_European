@@ -94,9 +94,10 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
         mr = serial.send("MR")
         encoder_deg = int(mr[-1])
 
-
         diff = angle_diff(target_angle, encoder_deg)
 
+        print(f"ENCODER DEGREE: {encoder_deg}")
+        print(f"DIFF: {diff}")
         # ── Critério de chegada ───────────────────────────────────────────────
         if abs(diff) <= TURN_TOLERANCE:
             settled += 1
