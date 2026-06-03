@@ -8,6 +8,11 @@ int speeds[4] = {0, 0, 0, 0};
 HardwareSerial piSerial(2);
 HardwareSerial* activeSerial;
 
+// ===================== DEBUG MACROS =====================
+#define DEBUG_PRINT(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.print(__VA_ARGS__); } while(0)
+#define DEBUG_PRINTLN(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.println(__VA_ARGS__); } while(0)
+#define DEBUG_PRINTF(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.printf(__VA_ARGS__); } while(0)
+
 // ===================== SERVO =====================
 Servo vcServo;
 
@@ -101,14 +106,26 @@ void loop()
   else
     return;
 
+  // Espera até ter pelo menos 3 bytes no buffer da serial ativa (timeout de 50ms)
+  unsigned long start = millis();
+  while (activeSerial->available() < 3)
+  {
+    if (millis() - start > 50)
+    {
+      // Limpa lixo residual se der timeout e sai
+      while (activeSerial->available()) activeSerial->read();
+      return;
+    }
+  }
+
   // ── Leitura do comando (2 letras + separador) ─────────────────────────────
   String mode = "";
   mode += (char)activeSerial->read();
   mode += (char)activeSerial->read();
   activeSerial->read(); // descarta separador (espaço ou \n)
 
-  Serial.print("CMD: ");
-  Serial.println(mode);
+  DEBUG_PRINT("CMD: ");
+  DEBUG_PRINTLN(mode);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // COMANDOS
@@ -138,7 +155,7 @@ void loop()
 
     activeSerial->println("OK");
 
-    Serial.printf("  MC: [%d, %d, %d, %d]\n", speeds[0], speeds[1], speeds[2], speeds[3]);
+    DEBUG_PRINTF("  MC: [%d, %d, %d, %d]\n", speeds[0], speeds[1], speeds[2], speeds[3]);
   }
 
   // ── SR — Sensor Reading (ultrassónicos) ───────────────────────────────────
@@ -155,7 +172,7 @@ void loop()
     activeSerial->print(",");
     activeSerial->println(right);
 
-    Serial.printf("  SR: L=%d F=%d R=%d\n", left, front, right);
+    DEBUG_PRINTF("  SR: L=%d F=%d R=%d\n", left, front, right);
   }
 
   // ── MR — Motor Read (encoders) ────────────────────────────────────────────
@@ -173,7 +190,7 @@ void loop()
     }
     activeSerial->println();
 
-    Serial.printf("  MR: %.1f, %.1f, %.1f, %.1f\n", d[0], d[1], d[2], d[3]);
+    DEBUG_PRINTF("  MR: %.1f, %.1f, %.1f, %.1f\n", d[0], d[1], d[2], d[3]);
   }
 
   // ── MZ — Motor/encoder Zero (reset) ───────────────────────────────────────
@@ -183,7 +200,7 @@ void loop()
       pulseCount[i] = 0;
 
     activeSerial->println("OK");
-    Serial.println("  MZ: encoders reset");
+    DEBUG_PRINTLN("  MZ: encoders reset");
   }
 
   // ── VC — Victim Confirmed (kit de resgate) ────────────────────────────────
@@ -193,15 +210,15 @@ void loop()
     delay(1000);
     vcServo.write(0);
     activeSerial->println("OK");
-    Serial.println("  VC: servo ativado");
+    DEBUG_PRINTLN("  VC: servo ativado");
   }
 
   // ── Comando desconhecido — responde OK para não bloquear o Pi ─────────────
   else
   {
     activeSerial->println("OK");
-    Serial.print("  CMD desconhecido: ");
-    Serial.println(mode);
+    DEBUG_PRINT("  CMD desconhecido: ");
+    DEBUG_PRINTLN(mode);
   }
 
   // ── Flush de bytes residuais (ex: \r\n do Serial Monitor) ─────────────────
@@ -244,7 +261,7 @@ void updateCompensation()
     cachedRightComp = 0;
 
   if (cachedLeftComp > 0 || cachedRightComp > 0)
-    Serial.printf("  COMP: Ldist=%d(+%.1f) Rdist=%d(+%.1f)\n",
+    DEBUG_PRINTF("  COMP: Ldist=%d(+%.1f) Rdist=%d(+%.1f)\n",
                   leftDist, cachedLeftComp, rightDist, cachedRightComp);
 }
 
