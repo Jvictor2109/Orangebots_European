@@ -1,10 +1,10 @@
 void setup() {
-  Serial.begin(115200);
+  Serial2.begin(115200);
 }
 
 void loop() {
-  if (Serial.available()) {
-    String msg = Serial.readStringUntil('\n');
-    Serial.println("ECHO: " + msg);
+  if (Serial2.available()) {
+    String msg = Serial2.readStringUntil('\n');
+    Serial2.println("ECHO: " + msg);
   }
 }
