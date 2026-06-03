@@ -115,7 +115,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
         # ── Velocidade proporcional com slow zone ─────────────────────────────
         speed = TURN_SPEED_SLOW if abs(diff) < TURN_SLOW_ZONE else TURN_SPEED_FAST
 
-        if diff > 0:   # Virar direita
+        if diff < 0:   # Virar direita
             serial.send(f"MC -{speed} {speed} -{speed} {speed}")
         else:          # Virar esquerda
             serial.send(f"MC {speed} -{speed} {speed} -{speed}")
