@@ -33,6 +33,7 @@ def _robust_distance(encoder_vals: list[float]) -> float:
         return 0.0
     n = len(valid)
     mid = n // 2
+    print(f"Encoder: {(valid[mid - 1] + valid[mid]) / 2.0 if n % 2 == 0 else valid[mid]}")
     return (valid[mid - 1] + valid[mid]) / 2.0 if n % 2 == 0 else valid[mid]
 
 
