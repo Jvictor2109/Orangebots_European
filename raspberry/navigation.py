@@ -104,6 +104,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             continue
 
         parts = mr.strip().split(",")
+        print(f"MR RESPONSE: {parts}")
         if len(parts) < 5:
             time.sleep(0.02)
             continue
