@@ -92,7 +92,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
 
         # Leitura encoders
         mr = serial.send("MR")
-        encoder_deg = mr[-1]
+        encoder_deg = int(mr[-1])
 
 
         diff = angle_diff(target_angle, encoder_deg)
