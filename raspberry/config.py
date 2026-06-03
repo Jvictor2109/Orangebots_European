@@ -26,11 +26,11 @@ MAX_HEADING_CORR = 15       # Correção máxima por lado (unidades de velocidad
 HEADING_CORR_INTERVAL = 5   # Corrige a cada N ciclos de encoder
 
 # ── Rotação (IMU-based) ───────────────────────────────────────────────────────
-TURN_TOLERANCE   = 5.0      # graus — critério de paragem
+TURN_TOLERANCE   = 10.0      # graus — critério de paragem
 TURN_SLOW_ZONE   = 50.0     # graus — zona de desaceleração
 TURN_SPEED_FAST  = 25
 TURN_SPEED_SLOW  = 20
-TURN_SETTLED_CYCLES = 2     # Ciclos consecutivos dentro de tolerância para confirmar
+TURN_SETTLED_CYCLES = 4     # Ciclos consecutivos dentro de tolerância para confirmar
 TURN_TIMEOUT     = 8.0      # s — proteção contra rotação infinita
 
 # ── Rampa ─────────────────────────────────────────────────────────────────────
