@@ -209,3 +209,135 @@ class TCS3200:
             h += 360
 
         return {'hue': h, 'saturation': s, 'value': v}
+
+    # ── Classificação de cor (HSV) ────────────────────────────────────────────
+
+    def get_cor(self, black_v_max=0.15, white_s_max=0.15, white_v_min=0.70) -> str | None:
+        """
+        Lê HSV e classifica a cor do tile:
+          - 'preto', 'branco', 'vermelho', 'azul', 'verde', 'amarelo', 'desconhecido'
+        Retorna None se o sensor não estiver inicializado.
+
+        Thresholds configuráveis via argumentos (defaults de config.py).
+        """
+        try:
+            hsv = self.read_hsv()
+        except Exception as e:
+            print(f"[TCS] Erro em get_cor: {e}")
+            return None
+
+        h, s, v = hsv['hue'], hsv['saturation'], hsv['value']
+
+        # Preto: value muito baixo (superfície absorve quase toda a luz)
+        if v <= black_v_max:
+            return "preto"
+
+        # Branco: saturação muito baixa + value alto (reflete tudo igualmente)
+        if s <= white_s_max and v >= white_v_min:
+            return "branco"
+
+        # Classificação por hue (matiz)
+        if h < 15 or h >= 345:
+            return "vermelho"
+        if 15 <= h < 45:
+            return "laranja"
+        if 45 <= h < 80:
+            return "amarelo"
+        if 80 <= h < 160:
+            return "verde"
+        if 160 <= h < 200:
+            return "ciano"
+        if 200 <= h < 260:
+            return "azul"
+        if 260 <= h < 300:
+            return "roxo"
+        if 300 <= h < 345:
+            return "magenta"
+
+        return "desconhecido"
+
+    def is_preto(self, black_v_max=0.15) -> bool:
+        """Retorna True se o tile atual é preto (a não atravessar)."""
+        try:
+            hsv = self.read_hsv()
+            return hsv['value'] <= black_v_max
+        except Exception as e:
+            print(f"[TCS] Erro em is_preto: {e}")
+            return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# STUB — Sensor virtual quando hardware não está disponível
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _StubSensor:
+    """Stub que substitui o TCS3200 quando o hardware não está disponível.
+    Nunca bloqueia o robot (is_preto → False) e nunca deteta cor (get_cor → None).
+    """
+
+    @property
+    def available(self) -> bool:
+        return False
+
+    def is_preto(self) -> bool:
+        return False
+
+    def get_cor(self) -> str | None:
+        return None
+
+    def cleanup(self):
+        pass
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FACTORY — Cria sensor real ou stub (degradação graciosa)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_floor_sensor(enabled: bool = True):
+    """
+    Cria e inicializa o sensor TCS3200, ou devolve um _StubSensor se:
+      - enabled=False (utilizador pediu --no-floor)
+      - RPi.GPIO não está disponível (a correr em PC)
+      - Qualquer erro de hardware
+
+    Retorna um objeto com interface: is_preto(), get_cor(), cleanup().
+    """
+    if not enabled:
+        print("[TCS] Sensor de chão desativado.")
+        return _StubSensor()
+
+    try:
+        from config import TCS_S0, TCS_S1, TCS_S2, TCS_S3, TCS_OUT
+        from config import TCS_BLACK_VALUE_MAX, TCS_WHITE_SAT_MAX, TCS_WHITE_VALUE_MIN
+
+        sensor = TCS3200(
+            s0_pin=TCS_S0, s1_pin=TCS_S1,
+            s2_pin=TCS_S2, s3_pin=TCS_S3,
+            out_pin=TCS_OUT,
+        )
+        sensor.begin()
+
+        # Guardar thresholds de config para usar em get_cor / is_preto
+        sensor._black_v_max = TCS_BLACK_VALUE_MAX
+        sensor._white_s_max = TCS_WHITE_SAT_MAX
+        sensor._white_v_min = TCS_WHITE_VALUE_MIN
+
+        # Monkey-patch get_cor e is_preto para usarem thresholds do config
+        _original_get_cor = sensor.get_cor
+        _original_is_preto = sensor.is_preto
+        sensor.get_cor = lambda: _original_get_cor(
+            black_v_max=TCS_BLACK_VALUE_MAX,
+            white_s_max=TCS_WHITE_SAT_MAX,
+            white_v_min=TCS_WHITE_VALUE_MIN,
+        )
+        sensor.is_preto = lambda: _original_is_preto(
+            black_v_max=TCS_BLACK_VALUE_MAX,
+        )
+
+        print("[TCS] Sensor de chão OK.")
+        return sensor
+
+    except Exception as e:
+        print(f"[TCS] Hardware indisponível ({e}). Sensor no modo stub.")
+        return _StubSensor()
+

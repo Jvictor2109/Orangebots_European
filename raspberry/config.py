@@ -53,3 +53,15 @@ SERIAL_RETRY_WAIT = 0.05    # s entre tentativas
 MAG_OFFSET = (-7.3500, 4.5750)
 MAG_SCALE  = (0.9841, 1.0164)
 IMU_CALIBRATION_SAMPLES = 5  # Leituras iniciais para confirmar heading estável
+
+# ── Sensor de chão TCS3200 ────────────────────────────────────────────────────
+TCS_S0  = 17
+TCS_S1  = 27
+TCS_S2  = 22
+TCS_S3  = 23
+TCS_OUT = 24
+
+# Thresholds HSV para classificação de cor
+TCS_BLACK_VALUE_MAX  = 0.15   # value ≤ isto → preto
+TCS_WHITE_SAT_MAX    = 0.15   # sat ≤ isto E value ≥ WHITE_VALUE_MIN → branco
+TCS_WHITE_VALUE_MIN  = 0.70   # ver acima

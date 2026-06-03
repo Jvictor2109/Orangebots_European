@@ -15,7 +15,7 @@ import time
 
 from config import *
 from serial_comm import SerialComm
-from sensor_floor import FloorSensor
+from tcs3200 import create_floor_sensor
 from imu import IMU
 from dfs import explorar_labirinto
 from victim_detection.camera import Camera
@@ -67,7 +67,7 @@ def main():
 
     # ── Sensor de chão ────────────────────────────────────────────────────────
     # Desativado em simulação (sem hardware) e quando --no-floor é pedido
-    floor = FloorSensor(enabled=not args.no_floor and not args.simulate)
+    floor = create_floor_sensor(enabled=not args.no_floor and not args.simulate)
 
     # ── Câmara + detetores ────────────────────────────────────────────────────
     camera = None
@@ -124,7 +124,7 @@ def main():
         # Garante paragem dos motores SEMPRE, mesmo em crash
         serial.send("MC 0 0 0 0")
         serial.close()
-        floor.close()
+        floor.cleanup()
         if camera:
             camera.close()
             print("[CAM] Câmara parada.")

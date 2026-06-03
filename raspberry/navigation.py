@@ -3,7 +3,7 @@ navigation.py — Controlo de movimento de baixo nível.
 
   angle_diff(target, current)          → diferença angular com sinal
   turn_to(target_cardinal, ...)        → rotação IMU com TURN_SLOW_ZONE + settled count
-  move_forward(serial, imu, floor, cardinal) → avanço com heading-hold + rampa + preto
+  move_forward(serial, imu, floor_sensor, cardinal) → avanço com heading-hold + rampa + preto
   move_to_direction(current, target, ...)    → turn + forward + drift check
 """
 
@@ -110,7 +110,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             continue
 
         try:
-            encoder_deg = float(parts[4])
+            encoder_deg = abs(float(parts[4]))
         except ValueError:
             time.sleep(0.02)
             continue
