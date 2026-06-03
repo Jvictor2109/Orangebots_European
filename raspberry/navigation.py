@@ -174,6 +174,7 @@ def move_forward(serial, imu, floor_sensor, current_cardinal: int) -> str:
         vals = _parse_encoder(resp)
         if vals is not None:
             distance = _robust_distance([abs(v) for v in vals])
+            print(distance)
 
         if distance >= CELL_DISTANCE_CM:
             break
