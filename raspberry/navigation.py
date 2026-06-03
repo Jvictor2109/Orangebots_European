@@ -43,7 +43,7 @@ def _parse_encoder(response: str) -> list[float] | None:
         return None
     try:
         # Aceita 4 ou 5 campos (ignora campo extra de ângulo, se presente)
-        parts = response.split(",")[:4]
+        parts = response.split(",")
         return [float(v.strip()) for v in parts]
     except (ValueError, IndexError):
         return None
@@ -84,13 +84,18 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             print(f"  [TURN] Timeout → {DIRECTION_NAME[target_cardinal]}")
             return False
 
-        # ── Leitura IMU ───────────────────────────────────────────────────────
+        # ── Leitura IMU ─────────────────────────── Nao usada ──────────────────────────
         heading_deg, _ = imu.get_heading()
         if heading_deg is None:
             time.sleep(0.05)
             continue
 
-        diff = angle_diff(target_angle, heading_deg)
+        # Leitura encoders
+        mr = serial.send("MR")
+        encoder_deg = mr[-1]
+
+
+        diff = angle_diff(target_angle, encoder_deg)
 
         # ── Critério de chegada ───────────────────────────────────────────────
         if abs(diff) <= TURN_TOLERANCE:
@@ -174,6 +179,7 @@ def move_forward(serial, imu, floor_sensor, current_cardinal: int) -> str:
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
         if vals is not None:
+            vals = vals[:4]
             distance = _robust_distance([abs(v) for v in vals])
             print(distance)
 
