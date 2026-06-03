@@ -212,7 +212,7 @@ def move_to_direction(current_dir: int, target_dir: int,
         heading_deg, _ = imu.get_heading()
         if heading_deg is not None:
             drift = abs(angle_diff(DIRECTION_ANGLE[target_dir], heading_deg))
-            if drift > 10.0:
+            if drift > 20.0:
                 print(f"  [NAV] Drift após avanço: {drift:.1f}° — a corrigir")
                 turn_to(target_dir, serial, imu)
 
