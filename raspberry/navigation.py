@@ -110,7 +110,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             continue
 
         try:
-            encoder_deg = float(parts[4])
+            encoder_deg = float(parts[4]) *10
         except ValueError:
             time.sleep(0.02)
             continue
