@@ -14,7 +14,7 @@ DIRECTION_ANGLE = {NORTH: 0.0, EAST: 90.0, SOUTH: 180.0, WEST: 270.0}
 # ── Geometria e sensoriamento ─────────────────────────────────────────────────
 CELL_DISTANCE_CM  = 30.0    # Comprimento de uma célula (cm)
 WALL_THRESHOLD_CM = 15.0    # Dist. <= threshold → parede detetada (cm)
-DR_POLL_INTERVAL  = 0.01    # Intervalo entre leituras de encoder (s)
+DR_POLL_INTERVAL  = 0.20    # Intervalo entre leituras de encoder (s)
 
 # ── Velocidades ───────────────────────────────────────────────────────────────
 MOTOR_SPEED       = 40      # Velocidade base de avanço (0-100)
