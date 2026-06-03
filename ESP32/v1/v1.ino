@@ -1,70 +1,64 @@
+// Merged ESP32 sketch
+// Priority given to second code logic/features
+// Pin assignments and motor direction logic kept from first code
+
 #include <Ultrasonic.h>
 #include <ESP32Servo.h>
 
-// ======================== MOTOR STATE ========================
-int speeds[4] = {0, 0, 0, 0};
+//========================= COMP DEBUG ==================
+bool compReport = false;
+int SCompDistance = 10;
+float gain = 5;
+
+// ======================== FDS ========================
+int speeds[4] = {};
+bool mcActive = false;
 
 // ===================== UART (PI) =====================
 HardwareSerial piSerial(2);
 HardwareSerial* activeSerial;
 
-// ===================== DEBUG MACROS =====================
-#define DEBUG_PRINT(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.print(__VA_ARGS__); } while(0)
-#define DEBUG_PRINTLN(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.println(__VA_ARGS__); } while(0)
-#define DEBUG_PRINTF(...) do { if (activeSerial == NULL || activeSerial != (HardwareSerial*)&Serial) Serial.printf(__VA_ARGS__); } while(0)
-
 // ===================== SERVO =====================
-Servo vcServo;
+Servo lcservo;
 
 // ===================== ULTRASONIC =====================
-// Mapeamento físico: sonic1=ESQ, sonic2=FRENTE, sonic3=DIR, sonic4=TRÁS
-Ultrasonic sonicLeft(21, 19);
-Ultrasonic sonicFront(12, 13);
-Ultrasonic sonicRight(23, 22);
-Ultrasonic sonicBack(2, 15);
+Ultrasonic sonic1(33,32);
+Ultrasonic sonic2(26,25);
+Ultrasonic sonic3(22,23);
+
+int sonicDistances[4] = {0,0,0,0};
 
 // ===================== MOTOR PINS =====================
-// v1=FE(0)  v2=FD(1)  v3=TE(2)  v4=TD(3)
-int speedpins[] = {25, 4, 18, 32};
-int dirpins[]   = {26, 5, 14, 33};
+int speedpins[] = {5,18,19,21};
+int dirpins[]   = {15,2,0,4};
 
 // ===================== ENCODER =====================
-volatile unsigned long pulseCount[4] = {0, 0, 0, 0};
-int motorReadPin[] = {35, 34, 39, 36};
+volatile unsigned long pulseCount[4] = {0,0,0,0};
+float motorDistance[4] = {0,0,0,0};
+int motorReadPin[] = {35,34,39,36};
 
-// ===================== COMPENSAÇÃO LATERAL =====================
-float sideCompGain      = 1.5;
-int   sideCompThreshold = 10;       // cm — ativa compensação abaixo disto
-unsigned long lastCompTime = 0;
-const int COMP_INTERVAL = 200;      // ms
+// ===================== ROBOT STATE =====================
+float robotAngleRad = 0;
+float robotAngleDeg = 0;
 
-// Valores em cache (evita ler sonics dentro do handler MC)
-float cachedLeftComp  = 0;
-float cachedRightComp = 0;
+// ===================== TIMERS =====================
+unsigned long lastcomp = 0;
 
 // ===================== INTERRUPTS =====================
-void IRAM_ATTR countPulse1() { pulseCount[0]++; }
-void IRAM_ATTR countPulse2() { pulseCount[1]++; }
-void IRAM_ATTR countPulse3() { pulseCount[2]++; }
-void IRAM_ATTR countPulse4() { pulseCount[3]++; }
+void countPulse1(){ pulseCount[0]++; }
+void countPulse2(){ pulseCount[1]++; }
+void countPulse3(){ pulseCount[2]++; }
+void countPulse4(){ pulseCount[3]++; }
 
-// ===================== PROTOTYPES =====================
 void setMotorSpeed(int[]);
-void applyMotorsWithComp();
-void updateCompensation();
-bool isTranslating();
+void updateMotorDistance();
 
-// ===================== SETUP =====================
 void setup()
 {
   Serial.begin(115200);
   piSerial.begin(115200, SERIAL_8N1, 16, 17);
 
-  // Timeout curto para parseInt (evita bloqueio em dados parciais)
-  piSerial.setTimeout(200);
-  Serial.setTimeout(200);
-
-  for (int i = 0; i < 4; i++)
+  for(int i=0;i<4;i++)
     pinMode(motorReadPin[i], INPUT);
 
   attachInterrupt(digitalPinToInterrupt(motorReadPin[0]), countPulse1, RISING);
@@ -72,241 +66,184 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(motorReadPin[2]), countPulse3, RISING);
   attachInterrupt(digitalPinToInterrupt(motorReadPin[3]), countPulse4, RISING);
 
-  vcServo.setPeriodHertz(50);
-  vcServo.attach(27, 500, 2400);
-  vcServo.write(0);
+  lcservo.setPeriodHertz(50);
+  lcservo.attach(27, 500, 2400);
 
-  for (int i = 0; i < 4; i++)
+  for(int i=0;i<4;i++)
   {
     ledcAttach(speedpins[i], 25000, 8);
     pinMode(dirpins[i], OUTPUT);
   }
 
-  int zero[4] = {0, 0, 0, 0};
+  int zero[4]={0,0,0,0};
   setMotorSpeed(zero);
 }
 
-// ===================== LOOP =====================
 void loop()
 {
-  // ── Compensação lateral periódica ─────────────────────────────────────────
-  if (millis() - lastCompTime >= COMP_INTERVAL)
+  // compensation
+  if(millis() - lastcomp >= 200)
   {
-    updateCompensation();
-    if (isTranslating())
-      applyMotorsWithComp();
-    lastCompTime = millis();
+    float lc = sonic1.read();
+    float rc = sonic3.read();
+
+    if(lc < 10 && lc > 0) lc = lc * gain;
+    else lc = 0;
+
+    if(rc < 10 && rc > 0) rc = rc * gain;
+    else rc = 0;
+
+    int compSpeeds[4];
+
+    for(int i=0;i<4;i++)
+    {
+      int base = speeds[i];
+
+      if(i == 0 || i == 2)
+        compSpeeds[i] = base + lc;
+      else
+        compSpeeds[i] = base + rc;
+    }
+
+    if(compReport)
+    {
+      Serial.println("---- COMP UPDATE ----");
+      Serial.print("LC: "); Serial.println(lc);
+      Serial.print("RC: "); Serial.println(rc);
+    }
+
+    setMotorSpeed(compSpeeds);
+    lastcomp = millis();
   }
 
-  // ── Seleção de serial ─────────────────────────────────────────────────────
-  if (piSerial.available())
+  if(piSerial.available())
     activeSerial = &piSerial;
-  else if (Serial.available())
+  else if(Serial.available())
     activeSerial = (HardwareSerial*)&Serial;
   else
     return;
 
-  // Espera até ter pelo menos 3 bytes no buffer da serial ativa (timeout de 50ms)
-  unsigned long start = millis();
-  while (activeSerial->available() < 3)
-  {
-    if (millis() - start > 50)
-    {
-      // Limpa lixo residual se der timeout e sai
-      while (activeSerial->available()) activeSerial->read();
-      return;
-    }
-  }
+  if(activeSerial->available() < 3)
+    return;
 
-  // ── Leitura do comando (2 letras + separador) ─────────────────────────────
-  String mode = "";
+  String mode="";
   mode += (char)activeSerial->read();
   mode += (char)activeSerial->read();
-  activeSerial->read(); // descarta separador (espaço ou \n)
+  activeSerial->read();
 
-  DEBUG_PRINT("CMD: ");
-  DEBUG_PRINTLN(mode);
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // COMANDOS
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  // ── PG — Ping ─────────────────────────────────────────────────────────────
-  if (mode == "PG")
+  if(mode == "MC")
   {
-    activeSerial->println("OK");
-  }
-
-  // ── MC — Motor Control ────────────────────────────────────────────────────
-  else if (mode == "MC")
-  {
-    for (int i = 0; i < 4; i++)
+    for(int i=0;i<4;i++)
     {
       int speed = activeSerial->parseInt();
-      activeSerial->read(); // descarta separador
-      speeds[i] = constrain(speed, -100, 100);
+      activeSerial->read();
+      speed = constrain(speed,-100,100);
+      speeds[i] = speed;
     }
 
-    // Aplica com compensação lateral se estiver em translação
-    if (isTranslating())
-      applyMotorsWithComp();
-    else
-      setMotorSpeed(speeds);
-
-    activeSerial->println("OK");
-
-    DEBUG_PRINTF("  MC: [%d, %d, %d, %d]\n", speeds[0], speeds[1], speeds[2], speeds[3]);
+    setMotorSpeed(speeds);
   }
 
-  // ── SR — Sensor Reading (ultrassónicos) ───────────────────────────────────
-  else if (mode == "SR")
+  else if(mode == "CR")
   {
-    int left  = sonicLeft.read();
-    int front = sonicFront.read();
-    int right = sonicRight.read();
-
-    // Resposta: esq,frente,dir (3 valores)
-    activeSerial->print(left);
-    activeSerial->print(",");
-    activeSerial->print(front);
-    activeSerial->print(",");
-    activeSerial->println(right);
-
-    DEBUG_PRINTF("  SR: L=%d F=%d R=%d\n", left, front, right);
+    compReport = !compReport;
+    Serial.println(compReport ? "COMP ON" : "COMP OFF");
   }
 
-  // ── MR — Motor Read (encoders) ────────────────────────────────────────────
-  else if (mode == "MR")
+  else if(mode == "SR")
   {
-    float d[4];
-    for (int i = 0; i < 4; i++)
-      d[i] = pulseCount[i] * 0.756;
+    int raw[4];
 
-    // Resposta: e1,e2,e3,e4 (4 valores, sem ângulo)
-    for (int i = 0; i < 4; i++)
+    raw[0]=sonic1.read(); delay(50);
+    raw[1]=sonic2.read(); delay(50);
+    raw[2]=sonic3.read(); delay(50);
+
+    sonicDistances[3]=0;
+
+    for(int i=0;i<3;i++)
     {
-      activeSerial->print(d[i]);
-      if (i < 3) activeSerial->print(",");
+      int d=raw[i];
+
+      if(d==0) d=10;
+      else if(d<3) d=3;
+      else if(d>100) d=10;
+
+      sonicDistances[i]=d;
     }
-    activeSerial->println();
 
-    DEBUG_PRINTF("  MR: %.1f, %.1f, %.1f, %.1f\n", d[0], d[1], d[2], d[3]);
+    for(int i=0;i<4;i++)
+    {
+      piSerial.print(sonicDistances[i]);
+      if(i<3) piSerial.print(",");
+    }
+    piSerial.println();
   }
 
-  // ── MZ — Motor/encoder Zero (reset) ───────────────────────────────────────
-  else if (mode == "MZ")
+  else if(mode == "LC")
   {
-    for (int i = 0; i < 4; i++)
-      pulseCount[i] = 0;
-
-    activeSerial->println("OK");
-    DEBUG_PRINTLN("  MZ: encoders reset");
-  }
-
-  // ── VC — Victim Confirmed (kit de resgate) ────────────────────────────────
-  else if (mode == "VC")
-  {
-    vcServo.write(90);
+    lcservo.write(90);
     delay(1000);
-    vcServo.write(0);
-    activeSerial->println("OK");
-    DEBUG_PRINTLN("  VC: servo ativado");
+    lcservo.write(0);
   }
 
-  // ── Comando desconhecido — responde OK para não bloquear o Pi ─────────────
-  else
+  else if(mode == "MR")
   {
-    activeSerial->println("OK");
-    DEBUG_PRINT("  CMD desconhecido: ");
-    DEBUG_PRINTLN(mode);
+    updateMotorDistance();
+
+    float avg=0;
+    for(int i=0;i<4;i++) avg += motorDistance[i];
+    avg /= 4.0;
+
+    for(int i=0;i<4;i++)
+    {
+      piSerial.print(motorDistance[i],2);
+      piSerial.print(",");
+    }
+    piSerial.println(avg,2);
   }
 
-  // ── Flush de bytes residuais (ex: \r\n do Serial Monitor) ─────────────────
-  while (activeSerial->available())
+  else if(mode == "PG")
   {
-    if (activeSerial->read() == '\n') break;
+    // Serial.println("OK");
+    piSerial.println("OK");
   }
 }
-
-// ═════════════════════════════════════════════════════════════════════════════
-// COMPENSAÇÃO LATERAL
-// ═════════════════════════════════════════════════════════════════════════════
-
-bool isTranslating()
-{
-  // Translação = todos os motores no mesmo sentido (não parado, não a rodar)
-  bool hasPos = false, hasNeg = false, allZero = true;
-  for (int i = 0; i < 4; i++)
-  {
-    if (speeds[i] > 0) { hasPos = true; allZero = false; }
-    if (speeds[i] < 0) { hasNeg = true; allZero = false; }
-  }
-  return !allZero && !(hasPos && hasNeg);
-}
-
-void updateCompensation()
-{
-  int leftDist  = sonicLeft.read();
-  int rightDist = sonicRight.read();
-
-  // Quanto mais perto da parede, MAIOR a compensação
-  if (leftDist > 0 && leftDist <= sideCompThreshold)
-    cachedLeftComp = (sideCompThreshold - leftDist) * sideCompGain;
-  else
-    cachedLeftComp = 0;
-
-  if (rightDist > 0 && rightDist <= sideCompThreshold)
-    cachedRightComp = (sideCompThreshold - rightDist) * sideCompGain;
-  else
-    cachedRightComp = 0;
-
-  if (cachedLeftComp > 0 || cachedRightComp > 0)
-    DEBUG_PRINTF("  COMP: Ldist=%d(+%.1f) Rdist=%d(+%.1f)\n",
-                  leftDist, cachedLeftComp, rightDist, cachedRightComp);
-}
-
-void applyMotorsWithComp()
-{
-  int compSpeeds[4];
-  for (int i = 0; i < 4; i++)
-  {
-    float comp;
-    // Motores esquerdos (0,2): compensação esquerda acelera → afasta da parede esq
-    // Motores direitos  (1,3): compensação direita acelera → afasta da parede dir
-    if (i == 0 || i == 2)
-      comp = cachedLeftComp;
-    else
-      comp = cachedRightComp;
-
-    // Inverte compensação se o motor está em marcha-atrás
-    if (speeds[i] < 0)
-      comp = -comp;
-
-    compSpeeds[i] = constrain(speeds[i] + (int)comp, -100, 100);
-  }
-  setMotorSpeed(compSpeeds);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// CONTROLO DE MOTORES
-// ═════════════════════════════════════════════════════════════════════════════
 
 void setMotorSpeed(int velocidades[])
 {
-  for (int i = 0; i < 4; i++)
+  bool inv;
+
+  for(int i=0;i<4;i++)
   {
     int speed = velocidades[i];
-    bool inv;
 
-    // Motores do lado direito (1,3) têm lógica de direção invertida
-    if (i == 1 || i == 3)
+    // FIRST CODE DIRECTION LOGIC
+    if(i == 0 || i == 2)
       inv = (speed <= 0);
     else
       inv = (speed > 0);
 
-    int mappedSpeed = map(abs(speed), 0, 100, 255, 0);
+    speed = map(abs(speed),0,100,255,0);
 
-    digitalWrite(dirpins[i], inv ? HIGH : LOW);
-    ledcWrite(speedpins[i], mappedSpeed);
+    if(inv)
+      digitalWrite(dirpins[i], HIGH);
+    else
+      digitalWrite(dirpins[i], LOW);
+
+    ledcWrite(speedpins[i], speed);
   }
+}
+
+void updateMotorDistance()
+{
+  for(int i=0;i<4;i++)
+    motorDistance[i] = pulseCount[i] * 0.756;
+
+  float leftDist  = (motorDistance[0] + motorDistance[2]) / 2.0;
+  float rightDist = (motorDistance[1] + motorDistance[3]) / 2.0;
+
+  float delta = rightDist - leftDist;
+
+  robotAngleRad = delta / 275.0;
+  robotAngleDeg = robotAngleRad * 57.2958;
 }
