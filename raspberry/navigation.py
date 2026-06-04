@@ -55,12 +55,17 @@ def _parse_encoder(response: str) -> list[float] | None:
 
 def turn_to(target_cardinal: int, serial, imu) -> bool:
     target_angle = DIRECTION_ANGLE[target_cardinal]
-    start        = time.time()
+    time        = time.time()
     settled      = 0
     last_sign    = None   # para detetar overshoot
+    angulo_atual = 0.0
 
     # Deteção de stub: se IMU não tem hardware, simula rotação instantânea
     heading_deg, _ = imu.get_heading()
+
+
+    diff = angle_diff(target_angle, heading_deg)
+    
     if heading_deg is None:
         print(f"  [TURN] IMU stub — rotação simulada para {DIRECTION_NAME[target_cardinal]}")
         time.sleep(0.1)
@@ -73,13 +78,29 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             print(f"  [TURN] Timeout → {DIRECTION_NAME[target_cardinal]}")
             return False
 
-        # ── Leitura IMU ───────────────────────────────────────────────────────
-        heading_deg, _ = imu.get_heading()
-        if heading_deg is None:
-            time.sleep(0.05)
-            continue
+        # # ── Leitura IMU ───────────────────────────────────────────────────────
+        # heading_deg, _ = imu.get_heading()
+        # if heading_deg is None:
+        #     time.sleep(0.05)
+        #     continue
 
-        diff = angle_diff(target_angle, heading_deg)
+        # diff = angle_diff(target_angle, heading_deg)
+
+        gyro = imu.get_gyro()
+        z_axys = gyro[2]
+
+        vel_angular = z_axys - GYRO_OFFSET
+
+        time_atual = time.time()
+
+        delta_time = time_atual -time
+        time = time_atual
+
+        angulo_atual += vel_angular * delta_time
+
+        time.sleep(0.01)
+
+
 
         # ── Critério de chegada ───────────────────────────────────────────────
         if abs(diff) <= TURN_TOLERANCE:
@@ -92,17 +113,20 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
         else:
             settled = 0
 
-        # ── Deteção de overshoot ──────────────────────────────────────────────
-        sign = 1 if diff > 0 else -1
-        if last_sign is not None and sign != last_sign:
-            # Passou do alvo sem entrar em tolerância → para e aceita posição atual
-            serial.send("MC 0 0 0 0")
-            print(f"  [TURN] Overshoot detetado (diff={diff:.1f}°), a aceitar posição")
+        if angulo_atual >= 90:
             break
-        last_sign = sign
+
+        # # ── Deteção de overshoot ──────────────────────────────────────────────
+        # sign = 1 if diff > 0 else -1
+        # if last_sign is not None and sign != last_sign:
+        #     # Passou do alvo sem entrar em tolerância → para e aceita posição atual
+        #     serial.send("MC 0 0 0 0")
+        #     print(f"  [TURN] Overshoot detetado (diff={diff:.1f}°), a aceitar posição")
+        #     break
+        # last_sign = sign
 
         # ── Velocidade proporcional com slow zone ─────────────────────────────
-        speed = TURN_SPEED_SLOW if abs(diff) < TURN_SLOW_ZONE else TURN_SPEED_FAST
+        # speed = TURN_SPEED_SLOW if abs(diff) < TURN_SLOW_ZONE else TURN_SPEED_FAST
 
         if diff < 0:   # Virar direita
             serial.send(f"MC -{speed} {speed} -{speed} {speed}")

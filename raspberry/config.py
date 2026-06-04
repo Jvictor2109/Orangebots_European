@@ -14,7 +14,7 @@ DIRECTION_ANGLE = {NORTH: 0.0, EAST: 90.0, SOUTH: 180.0, WEST: 270.0}
 # ── Geometria e sensoriamento ─────────────────────────────────────────────────
 CELL_DISTANCE_CM  = 25.0    # Comprimento de uma célula (cm)
 WALL_THRESHOLD_CM = 16.0    # Dist. <= threshold → parede detetada (cm)
-FRONT_THRE = 8.0
+FRONT_THRE = 10.0
 DR_POLL_INTERVAL  = 0.20    # Intervalo entre leituras de encoder (s)
 
 # ── Velocidades ───────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ TURN_SPEED_FAST  = 30
 TURN_SPEED_SLOW  = 25
 TURN_SETTLED_CYCLES = 4    # Ciclos consecutivos dentro de tolerância para confirmar
 TURN_TIMEOUT     = 8.0      # s — proteção concdtra rotação infinita
+GYRO_OFFSET = 0.5
 
 # ── Rampa ─────────────────────────────────────────────────────────────────────
 RAMP_ENTER_DEG   = 150.0    # Inclinação abaixo desta → em rampa
