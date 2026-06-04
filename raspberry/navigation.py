@@ -114,7 +114,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             continue
 
         try:
-            encoder_deg = abs(float(parts[4])) *10
+            encoder_deg = abs(float(parts[4]))
         except ValueError:
             time.sleep(0.02)
             continue
@@ -279,6 +279,7 @@ def _reverse_by(serial, distance: float):
     while time.time() - start < 5.0:
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
+        vals = vals[:4]
         if vals is not None:
             rev_dist = _robust_distance([abs(v) for v in vals])
             if rev_dist >= distance:
@@ -335,6 +336,7 @@ def _traverse_ramp(serial, imu) -> str:
     while time.time() - center_start < 5.0:  # timeout de segurança
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
+        vals = vals[:4]
         if vals is not None:
             dist = _robust_distance([abs(v) for v in vals])
             if dist >= RAMP_CENTERING_CM:
