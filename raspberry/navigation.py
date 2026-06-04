@@ -139,9 +139,60 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
         time.sleep(0.02)
 
     serial.send("MC 0 0 0 0")
-    time.sleep(0.1)  # Deixa o robot estabilizar mecanicamente
+    time.sleep(0.15)  # Deixa o robot estabilizar mecanicamente
+
+    # ── 3. Verificação e correção fina com IMU ────────────────────────────────
+    _imu_fine_correction(target_angle, serial, imu)
+
+    # ── 4. Reset encoders após rotação (previne resíduos no move_forward) ─────
+    serial.send("MZ")
+    time.sleep(0.05)
+
     return True
 
+
+def _imu_fine_correction(target_angle: float, serial, imu,
+                          timeout: float = 3.0):
+    """
+    Correção fina pós-rotação usando IMU como referência absoluta.
+    Lê o heading real e corrige com velocidade lenta até estar dentro
+    da tolerância por 2 leituras consecutivas.
+    """
+    settled = 0
+    start = time.time()
+
+    while time.time() - start < timeout:
+        heading_deg, _ = imu.get_heading()
+        if heading_deg is None:
+            time.sleep(0.02)
+            continue
+
+        diff = angle_diff(target_angle, heading_deg)
+        print(f"  [FINE] heading={heading_deg:.1f}° target={target_angle:.1f}° diff={diff:.1f}°")
+
+        if abs(diff) <= TURN_TOLERANCE:
+            settled += 1
+            serial.send("MC 0 0 0 0")
+            if settled >= 2:
+                print(f"  [FINE] OK — heading={heading_deg:.1f}°")
+                return
+            time.sleep(0.03)
+            continue
+
+        settled = 0
+
+        # Velocidade lenta para correção fina
+        speed = TURN_SPEED_SLOW
+
+        if diff > 0:  # Precisa virar à esquerda
+            serial.send(f"MC {speed} -{speed} {speed} -{speed}")
+        else:         # Precisa virar à direita
+            serial.send(f"MC -{speed} {speed} -{speed} {speed}")
+
+        time.sleep(0.02)
+
+    serial.send("MC 0 0 0 0")
+    print(f"  [FINE] Timeout na correção fina")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
