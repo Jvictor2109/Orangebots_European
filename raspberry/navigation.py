@@ -74,6 +74,8 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
         print(f"  [TURN] IMU stub — rotação simulada para {DIRECTION_NAME[target_cardinal]}")
         time.sleep(0.1)
         return True
+    
+    print(f"HEADING IMU: {heading_deg}")
 
     initial_diff   = angle_diff(target_angle, heading_deg)
     target_degrees = abs(initial_diff)
