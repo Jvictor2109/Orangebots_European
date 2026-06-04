@@ -78,14 +78,16 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
     print(f"HEADING IMU: {heading_deg}")
 
     initial_diff   = angle_diff(target_angle, heading_deg)
+    print(f"INITIAL DIFF: {initial_diff}")
     target_degrees = abs(initial_diff)
+    print(f"TARGET DEG: {target_degrees}")
 
     if target_degrees < TURN_TOLERANCE:
         print(f"  [TURN] Já no alvo ({target_degrees:.1f}° < tolerância)")
         return True
 
     # angle_diff: positivo = virar esquerda, negativo = virar direita
-    turn_left = initial_diff > 0
+    turn_left = initial_diff > 0    
     print(f"  [TURN] {'Esquerda' if turn_left else 'Direita'} {target_degrees:.1f}° → {DIRECTION_NAME[target_cardinal]}")
 
     # ── 2. Reset encoders e registo de tempo ─────────────────────────────────
