@@ -265,7 +265,9 @@ class LetterDetector:
 
             candidates.append((x, y, w, h))
 
-        return candidates
+        # OTIMIZAÇÃO: Testar apenas os 5 maiores candidatos para não perder tempo com ruído
+        candidates.sort(key=lambda c: c[2] * c[3], reverse=True)
+        return candidates[:5]
 
     def _match_template(self, roi: np.ndarray) -> tuple:
         """
@@ -280,6 +282,15 @@ class LetterDetector:
 
         roi_h, roi_w = roi.shape[:2]
 
+        # OTIMIZAÇÃO CRÍTICA: Se o ROI for gigante (ex: 400x400), o matchTemplate é lentíssimo.
+        # Reduzimos o ROI para no máximo 80px, mantendo a proporção.
+        MAX_ROI_SIZE = 80
+        if max(roi_w, roi_h) > MAX_ROI_SIZE:
+            scale_down = MAX_ROI_SIZE / max(roi_w, roi_h)
+            roi_w = int(roi_w * scale_down)
+            roi_h = int(roi_h * scale_down)
+            roi = cv2.resize(roi, (roi_w, roi_h), interpolation=cv2.INTER_AREA)
+
         for letter, rotated_templates in self.templates.items():
             for rot_idx, tmpl in enumerate(rotated_templates):
                 tmpl_h, tmpl_w = tmpl.shape[:2]
@@ -287,7 +298,8 @@ class LetterDetector:
                 # Calcular escalas dinâmicas baseadas no tamanho do ROI
                 # O ROI tem ~15% de margem, o template tem ~10% de margem.
                 base_scale = min(roi_w / (tmpl_w + 1e-5), roi_h / (tmpl_h + 1e-5))
-                dynamic_scales = [base_scale * 0.6, base_scale * 0.7, base_scale * 0.8, base_scale * 0.9, base_scale * 0.95]
+                # OTIMIZAÇÃO: 3 escalas são suficientes em vez de 5, acelera 40%
+                dynamic_scales = [base_scale * 0.7, base_scale * 0.85, base_scale * 0.95]
 
                 for scale in dynamic_scales:
                     new_w = int(tmpl_w * scale)

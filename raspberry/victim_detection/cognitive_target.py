@@ -138,6 +138,17 @@ def classify_color_region(hsv_img: np.ndarray, mask: np.ndarray) -> tuple:
         A confiança é a fração de pixels que votaram na cor vencedora.
     """
     pixels = hsv_img[mask > 0]
+    
+    # OTIMIZAÇÃO: Limitar o número de píxeis para evitar lentidão extrema no loop Python
+    MAX_PIXELS = 150
+    total_pixels = len(pixels)
+    if total_pixels > MAX_PIXELS:
+        step = total_pixels // MAX_PIXELS
+        pixels = pixels[::step]
+        # Garantir que não ultrapassamos muito o limite
+        if len(pixels) > MAX_PIXELS:
+            pixels = pixels[:MAX_PIXELS]
+
     if len(pixels) < 3:
         return "black", 0.0
 
@@ -223,7 +234,9 @@ class CognitiveTargetDetector:
 
             result.append((cx, cy, r))
 
-        return result
+        # OTIMIZAÇÃO: O HoughCircles já retorna os círculos ordenados por votos (confiança).
+        # Limitamos aos 3 melhores para não perder tempo com eventuais falsos círculos no fundo.
+        return result[:3]
 
     def _analyze_rings(self, frame: np.ndarray, cx: int, cy: int, radius: int) -> tuple:
         """
@@ -237,8 +250,21 @@ class CognitiveTargetDetector:
         Returns:
             (rings_info, avg_confidence) onde rings_info é lista de dicts
         """
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         h_img, w_img = frame.shape[:2]
+
+        # OTIMIZAÇÃO: Recortar a área do alvo para não processar a imagem toda em HSV e Máscaras
+        x1 = max(0, cx - radius)
+        y1 = max(0, cy - radius)
+        x2 = min(w_img, cx + radius)
+        y2 = min(h_img, cy + radius)
+        
+        roi_bgr = frame[y1:y2, x1:x2]
+        hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
+        roi_h, roi_w = hsv.shape[:2]
+        
+        # Centro relativo ao ROI
+        rel_cx = cx - x1
+        rel_cy = cy - y1
 
         rings = []
         confidences = []
@@ -248,11 +274,11 @@ class CognitiveTargetDetector:
             r_inner = int(radius * self.RING_RATIOS[i])
             r_outer = int(radius * self.RING_RATIOS[i + 1])
 
-            # Cria máscara anelar
-            mask = np.zeros((h_img, w_img), dtype=np.uint8)
-            cv2.circle(mask, (cx, cy), r_outer, 255, -1)
+            # Cria máscara anelar restrita ao ROI
+            mask = np.zeros((roi_h, roi_w), dtype=np.uint8)
+            cv2.circle(mask, (rel_cx, rel_cy), r_outer, 255, -1)
             if r_inner > 0:
-                cv2.circle(mask, (cx, cy), r_inner, 0, -1)
+                cv2.circle(mask, (rel_cx, rel_cy), r_inner, 0, -1)
 
             # Classifica cor
             color, conf = classify_color_region(hsv, mask)
