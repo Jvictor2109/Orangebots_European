@@ -182,10 +182,10 @@ def move_forward(serial, imu, floor_sensor, current_cardinal: int) -> str:
                 return _traverse_ramp(serial, imu)
 
         # 3. Correção de heading ────────────────────────────────────────────────
-        if cycle % HEADING_CORR_INTERVAL == 0:
-            _apply_heading_correction(serial, imu, target_heading)
+        # if cycle % HEADING_CORR_INTERVAL == 0:
+        #     _apply_heading_correction(serial, imu, target_heading)
 
-        cycle += 1
+        # cycle += 1
 
         # 4. Distância por encoders (valores absolutos desde MZ) ───────────────
         resp = serial.send("MR")
