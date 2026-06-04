@@ -3,7 +3,7 @@ navigation.py — Controlo de movimento de baixo nível.
 
   angle_diff(target, current)          → diferença angular com sinal
   turn_to(target_cardinal, ...)        → rotação IMU com TURN_SLOW_ZONE + settled count
-  move_forward(serial, imu, floor_sensor, cardinal) → avanço com heading-hold + rampa + preto
+  move_forward(serial, imu, floor, cardinal) → avanço com heading-hold + rampa + preto
   move_to_direction(current, target, ...)    → turn + forward + drift check
 """
 
@@ -43,156 +43,77 @@ def _parse_encoder(response: str) -> list[float] | None:
         return None
     try:
         # Aceita 4 ou 5 campos (ignora campo extra de ângulo, se presente)
-        parts = response.split(",")
+        parts = response.split(",")[:4]
         return [float(v.strip()) for v in parts]
     except (ValueError, IndexError):
         return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ROTAÇÃO — ENCODER-BASED (ângulo acumulado desde MZ como critério de paragem)
+# ROTAÇÃO — IMU-BASED (corrige a falha crítica do main.py original)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def turn_to(target_cardinal: int, serial, imu) -> bool:
-    """
-    Roda o robot para o cardinal absoluto usando encoders como critério de paragem.
-
-    Fluxo:
-    - IMU usada UMA VEZ no início para calcular a direção e quantos graus rodar
-    - MZ reseta encoders antes de arrancar
-    - Loop lê o 5º campo do MR (ângulo acumulado desde MZ) para saber quando parar
-    - TURN_SLOW_ZONE baseado nos graus restantes (não em heading absoluto)
-    - Timeout com mensagem diagnóstica
-
-    Retorna True se concluiu OK, False se timeout.
-    """
     target_angle = DIRECTION_ANGLE[target_cardinal]
+    start        = time.time()
+    settled      = 0
+    last_sign    = None   # para detetar overshoot
 
-    # ── 1. Determinar direção e graus a rodar (usa IMU apenas aqui) ──────────
+    # Deteção de stub: se IMU não tem hardware, simula rotação instantânea
     heading_deg, _ = imu.get_heading()
     if heading_deg is None:
         print(f"  [TURN] IMU stub — rotação simulada para {DIRECTION_NAME[target_cardinal]}")
         time.sleep(0.1)
         return True
-    
-    print(f"HEADING IMU: {heading_deg}")
-
-    initial_diff   = angle_diff(target_angle, heading_deg)
-    print(f"INITIAL DIFF: {initial_diff}")
-    target_degrees = abs(initial_diff)
-    print(f"TARGET DEG: {target_degrees}")
-
-    if target_degrees < TURN_TOLERANCE:
-        print(f"  [TURN] Já no alvo ({target_degrees:.1f}° < tolerância)")
-        return True
-
-    # angle_diff: positivo = virar esquerda, negativo = virar direita
-    turn_left = initial_diff > 0    
-    print(f"  [TURN] {'Esquerda' if turn_left else 'Direita'} {target_degrees:.1f}° → {DIRECTION_NAME[target_cardinal]}")
-
-    # ── 2. Reset encoders e registo de tempo ─────────────────────────────────
-    serial.send("MZ")
-    start = time.time()
 
     while True:
-        # ── Timeout ───────────────────────────────────────────────────────────
+        # ── Timeout ──────────────────────────────────────────────────────────
         if time.time() - start > TURN_TIMEOUT:
             serial.send("MC 0 0 0 0")
             print(f"  [TURN] Timeout → {DIRECTION_NAME[target_cardinal]}")
             return False
 
-        # ── Leitura do ângulo acumulado (5º campo do MR) ─────────────────────
-        mr = serial.send("MR")
-        if not mr:
-            time.sleep(0.02)
-            continue
-
-        parts = mr.strip().split(",")
-        print(f"MR RESPONSE: {parts}")
-        if len(parts) < 5:
-            time.sleep(0.02)
-            continue
-
-        try:
-            encoder_deg = abs(float(parts[4]))
-        except ValueError:
-            time.sleep(0.02)
-            continue
-
-        remaining = target_degrees - encoder_deg
-        print(f"  [TURN] enc={encoder_deg:.1f}° alvo={target_degrees:.1f}° resta={remaining:.1f}°")
-
-        # ── Critério de chegada ───────────────────────────────────────────────
-        if remaining <= TURN_TOLERANCE:
-            serial.send("MC 0 0 0 0")
-            break
-
-        # ── Velocidade: slow zone quando próximo do alvo ──────────────────────
-        speed = TURN_SPEED_SLOW if remaining < TURN_SLOW_ZONE else TURN_SPEED_FAST
-
-        # ── Comando de rotação ────────────────────────────────────────────────
-        if turn_left:
-            serial.send(f"MC {speed} -{speed} {speed} -{speed}")
-        else:
-            serial.send(f"MC -{speed} {speed} -{speed} {speed}")
-
-        time.sleep(0.02)
-
-    serial.send("MC 0 0 0 0")
-    time.sleep(0.15)  # Deixa o robot estabilizar mecanicamente
-
-    # ── 3. Verificação e correção fina com IMU ────────────────────────────────
-    _imu_fine_correction(target_angle, serial, imu)
-
-    # ── 4. Reset encoders após rotação (previne resíduos no move_forward) ─────
-    serial.send("MZ")
-    time.sleep(0.05)
-
-    return True
-
-
-def _imu_fine_correction(target_angle: float, serial, imu,
-                          timeout: float = 3.0):
-    """
-    Correção fina pós-rotação usando IMU como referência absoluta.
-    Lê o heading real e corrige com velocidade lenta até estar dentro
-    da tolerância por 2 leituras consecutivas.
-    """
-    settled = 0
-    start = time.time()
-
-    while time.time() - start < timeout:
+        # ── Leitura IMU ───────────────────────────────────────────────────────
         heading_deg, _ = imu.get_heading()
         if heading_deg is None:
-            time.sleep(0.02)
+            time.sleep(0.05)
             continue
 
         diff = angle_diff(target_angle, heading_deg)
-        print(f"  [FINE] heading={heading_deg:.1f}° target={target_angle:.1f}° diff={diff:.1f}°")
 
+        # ── Critério de chegada ───────────────────────────────────────────────
         if abs(diff) <= TURN_TOLERANCE:
             settled += 1
             serial.send("MC 0 0 0 0")
-            if settled >= 2:
-                print(f"  [FINE] OK — heading={heading_deg:.1f}°")
-                return
-            time.sleep(0.03)
+            if settled >= TURN_SETTLED_CYCLES:
+                break
+            time.sleep(0.02)
             continue
+        else:
+            settled = 0
 
-        settled = 0
+        # ── Deteção de overshoot ──────────────────────────────────────────────
+        sign = 1 if diff > 0 else -1
+        if last_sign is not None and sign != last_sign:
+            # Passou do alvo sem entrar em tolerância → para e aceita posição atual
+            serial.send("MC 0 0 0 0")
+            print(f"  [TURN] Overshoot detetado (diff={diff:.1f}°), a aceitar posição")
+            break
+        last_sign = sign
 
-        # Velocidade lenta para correção fina
-        speed = TURN_SPEED_SLOW
+        # ── Velocidade proporcional com slow zone ─────────────────────────────
+        speed = TURN_SPEED_SLOW if abs(diff) < TURN_SLOW_ZONE else TURN_SPEED_FAST
 
-        if diff > 0:  # Precisa virar à esquerda
-            serial.send(f"MC {speed} -{speed} {speed} -{speed}")
-        else:         # Precisa virar à direita
+        if diff < 0:   # Virar direita
             serial.send(f"MC -{speed} {speed} -{speed} {speed}")
+        else:          # Virar esquerda
+            serial.send(f"MC {speed} -{speed} {speed} -{speed}")
 
         time.sleep(0.02)
 
     serial.send("MC 0 0 0 0")
-    print(f"  [FINE] Timeout na correção fina")
+    time.sleep(0.1)  # Deixa o robot estabilizar mecanicamente
+    return True
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -233,16 +154,15 @@ def move_forward(serial, imu, floor_sensor, current_cardinal: int) -> str:
                 return _traverse_ramp(serial, imu)
 
         # 3. Correção de heading ────────────────────────────────────────────────
-        # if cycle % HEADING_CORR_INTERVAL == 0:
-        #     _apply_heading_correction(serial, imu, target_heading)
+        if cycle % HEADING_CORR_INTERVAL == 0:
+            _apply_heading_correction(serial, imu, target_heading)
 
-        # cycle += 1
+        cycle += 1
 
         # 4. Distância por encoders (valores absolutos desde MZ) ───────────────
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
         if vals is not None:
-            vals = vals[:4]
             distance = _robust_distance([abs(v) for v in vals])
             print(distance)
 
@@ -330,7 +250,6 @@ def _reverse_by(serial, distance: float):
     while time.time() - start < 5.0:
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
-        vals = vals[:4]
         if vals is not None:
             rev_dist = _robust_distance([abs(v) for v in vals])
             if rev_dist >= distance:
@@ -387,7 +306,6 @@ def _traverse_ramp(serial, imu) -> str:
     while time.time() - center_start < 5.0:  # timeout de segurança
         resp = serial.send("MR")
         vals = _parse_encoder(resp)
-        vals = vals[:4]
         if vals is not None:
             dist = _robust_distance([abs(v) for v in vals])
             if dist >= RAMP_CENTERING_CM:
