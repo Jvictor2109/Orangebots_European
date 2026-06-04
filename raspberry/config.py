@@ -65,3 +65,10 @@ TCS_OUT = 24
 TCS_BLACK_VALUE_MAX  = 0.15   # value ≤ isto → preto
 TCS_WHITE_SAT_MAX    = 0.15   # sat ≤ isto E value ≥ WHITE_VALUE_MIN → branco
 TCS_WHITE_VALUE_MIN  = 0.70   # ver acima
+
+# ── Calibração Predefinida (Raw Frequencies) ──────────────────────────────────
+# Se quiser usar valores já calibrados sem precisar calibrar na hora,
+# altere a variável abaixo para True e coloque os valores (pulsos lidos) de preto e branco.
+TCS_USE_PREDEFINED_CALIBRATION = False
+TCS_CALIBRATION_BLACK = {'r': 0, 'g': 0, 'b': 0}
+TCS_CALIBRATION_WHITE = {'r': 1000, 'g': 1000, 'b': 1000}

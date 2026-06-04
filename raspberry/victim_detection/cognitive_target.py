@@ -216,7 +216,7 @@ class CognitiveTargetDetector:
             dp=1.2,
             minDist=max(30, min_radius * 2),
             param1=80,
-            param2=40,
+            param2=30,  # Reduzido de 40 para 30 para detetar alvos ligeiramente de lado (elipses)
             minRadius=min_radius,
             maxRadius=max_radius,
         )

@@ -309,6 +309,7 @@ def create_floor_sensor(enabled: bool = True):
     try:
         from config import TCS_S0, TCS_S1, TCS_S2, TCS_S3, TCS_OUT
         from config import TCS_BLACK_VALUE_MAX, TCS_WHITE_SAT_MAX, TCS_WHITE_VALUE_MIN
+        from config import TCS_USE_PREDEFINED_CALIBRATION, TCS_CALIBRATION_BLACK, TCS_CALIBRATION_WHITE
 
         sensor = TCS3200(
             s0_pin=TCS_S0, s1_pin=TCS_S1,
@@ -316,6 +317,17 @@ def create_floor_sensor(enabled: bool = True):
             out_pin=TCS_OUT,
         )
         sensor.begin()
+
+        # Aplicar calibração predefinida (se ativado)
+        if TCS_USE_PREDEFINED_CALIBRATION:
+            sensor.min_r = TCS_CALIBRATION_BLACK['r']
+            sensor.min_g = TCS_CALIBRATION_BLACK['g']
+            sensor.min_b = TCS_CALIBRATION_BLACK['b']
+            sensor.max_r = TCS_CALIBRATION_WHITE['r']
+            sensor.max_g = TCS_CALIBRATION_WHITE['g']
+            sensor.max_b = TCS_CALIBRATION_WHITE['b']
+            sensor.is_calibrated = True
+            print("[TCS] Usando calibração predefinida do config.py.")
 
         # Guardar thresholds de config para usar em get_cor / is_preto
         sensor._black_v_max = TCS_BLACK_VALUE_MAX
