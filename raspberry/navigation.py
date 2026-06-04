@@ -54,18 +54,6 @@ def _parse_encoder(response: str) -> list[float] | None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def turn_to(target_cardinal: int, serial, imu) -> bool:
-    """
-    Roda o robot para o cardinal absoluto usando encoders como critério de paragem.
-
-    Fluxo:
-    - IMU usada UMA VEZ no início para calcular a direção e quantos graus rodar
-    - MZ reseta encoders antes de arrancar
-    - Loop lê o 5º campo do MR (ângulo acumulado desde MZ) para saber quando parar
-    - TURN_SLOW_ZONE baseado nos graus restantes (não em heading absoluto)
-    - Timeout com mensagem diagnóstica
-
-    Retorna True se concluiu OK, False se timeout.
-    """
     target_angle = DIRECTION_ANGLE[target_cardinal]
 
     # ── 1. Determinar direção e graus a rodar (usa IMU apenas aqui) ──────────
@@ -119,16 +107,22 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
             time.sleep(0.02)
             continue
 
-        remaining = target_degrees - encoder_deg
-        print(f"  [TURN] enc={encoder_deg:.1f}° alvo={target_degrees:.1f}° resta={remaining:.1f}°")
+        
+        if target_degrees > 95:
+            if encoder_deg >= 180:
+                break
+        else:
+            if encoder_deg >= 90:
+                break
 
-        # ── Critério de chegada ───────────────────────────────────────────────
-        if remaining <= TURN_TOLERANCE:
-            serial.send("MC 0 0 0 0")
-            break
+        # # ── Critério de chegada ───────────────────────────────────────────────
+        # remaining = target_degrees - encoder_deg
+        # if remaining <= TURN_TOLERANCE:
+        #     serial.send("MC 0 0 0 0")
+        #     break
 
         # ── Velocidade: slow zone quando próximo do alvo ──────────────────────
-        speed = TURN_SPEED_SLOW if remaining < TURN_SLOW_ZONE else TURN_SPEED_FAST
+        speed = TURN_SPEED_SLOW if encoder_deg < TURN_SLOW_ZONE else TURN_SPEED_FAST
 
         # ── Comando de rotação ────────────────────────────────────────────────
         if turn_left:
@@ -246,6 +240,15 @@ def move_forward(serial, imu, floor_sensor, current_cardinal: int) -> str:
             distance = _robust_distance([abs(v) for v in vals])
             print(distance)
 
+        resp_sonic = serial.send("SR")
+        vals_sonic = _parse_encoder(resp_sonic)
+        print(f"SONIC: {vals_sonic}")
+        front = float(vals_sonic[1])
+
+        if front <= FRONT_THRE:
+            print("FRONT THRE")
+            break
+
         if distance >= CELL_DISTANCE_CM:
             break
 
@@ -277,16 +280,16 @@ def move_to_direction(current_dir: int, target_dir: int,
 
     # Verifica drift após avanço normal (acumulado de vibração, skid, etc.)
     # Não faz drift check após rampa — a centralização pós-rampa já cuida do alinhamento
-    if response == "OK":
-        heading_deg, _ = imu.get_heading()
-        if heading_deg is not None:
-            drift = abs(angle_diff(DIRECTION_ANGLE[target_dir], heading_deg))
-            if drift > 20.0:
-                print(f"  [NAV] Drift após avanço: {drift:.1f}° — a corrigir")
-                turn_to(target_dir, serial, imu)
+    # if response == "OK":
+    #     heading_deg, _ = imu.get_heading()
+    #     if heading_deg is not None:
+    #         drift = abs(angle_diff(DIRECTION_ANGLE[target_dir], heading_deg))
+    #         if drift > 20.0:
+    #             print(f"  [NAV] Drift após avanço: {drift:.1f}° — a corrigir")
+    #             turn_to(target_dir, serial, imu)
 
     return target_dir, response
-
+# 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FUNÇÕES AUXILIARES (internas)

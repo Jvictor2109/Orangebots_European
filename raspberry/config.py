@@ -12,12 +12,13 @@ DELTA_TO_DIR    = {v: k for k, v in DIRECTION_DELTA.items()}
 DIRECTION_ANGLE = {NORTH: 0.0, EAST: 90.0, SOUTH: 180.0, WEST: 270.0}
 
 # ── Geometria e sensoriamento ─────────────────────────────────────────────────
-CELL_DISTANCE_CM  = 27.0    # Comprimento de uma célula (cm)
+CELL_DISTANCE_CM  = 25.0    # Comprimento de uma célula (cm)
 WALL_THRESHOLD_CM = 16.0    # Dist. <= threshold → parede detetada (cm)
+FRONT_THRE = 8.0
 DR_POLL_INTERVAL  = 0.20    # Intervalo entre leituras de encoder (s)
 
 # ── Velocidades ───────────────────────────────────────────────────────────────
-MOTOR_SPEED       = 35      # Velocidade base de avanço (0-100)
+MOTOR_SPEED       = 30      # Velocidade base de avanço (0-100)
 RAMP_SPEED        = 60      # Velocidade ao subir/descer rampa
 
 # ── Correção de heading durante avanço (P-controller IMU) ─────────────────────
@@ -31,7 +32,7 @@ TURN_SLOW_ZONE   = 30.0     # graus — zona de desaceleração
 TURN_SPEED_FAST  = 30
 TURN_SPEED_SLOW  = 25
 TURN_SETTLED_CYCLES = 4    # Ciclos consecutivos dentro de tolerância para confirmar
-TURN_TIMEOUT     = 8.0      # s — proteção contra rotação infinita
+TURN_TIMEOUT     = 8.0      # s — proteção concdtra rotação infinita
 
 # ── Rampa ─────────────────────────────────────────────────────────────────────
 RAMP_ENTER_DEG   = 150.0    # Inclinação abaixo desta → em rampa
