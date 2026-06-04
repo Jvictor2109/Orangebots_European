@@ -34,7 +34,7 @@ TURN_SETTLED_CYCLES = 4    # Ciclos consecutivos dentro de tolerância para conf
 TURN_TIMEOUT     = 8.0      # s — proteção contra rotação infinita
 
 # ── Rampa ─────────────────────────────────────────────────────────────────────
-RAMP_ENTER_DEG   = 170.0    # Inclinação abaixo desta → em rampa
+RAMP_ENTER_DEG   = 150.0    # Inclinação abaixo desta → em rampa
 RAMP_EXIT_DEG    = 175.0    # Inclinação acima desta → rampa concluída
 RAMP_TIMEOUT_S   = 6.0      # s — timeout máximo na rampa
 RAMP_DOWN_SPEED  = 30       # Velocidade controlada ao descer rampa
