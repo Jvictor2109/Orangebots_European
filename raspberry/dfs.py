@@ -295,18 +295,9 @@ def _check_victims(serial, victim_manager, pos: tuple, log: list):
     hits   = result["hits"]
     total  = result["total_frames"]
 
-    if tipo == "letter":
-        letra = result["letter"]
-        print(f"  [VIT] Letra: {letra} ({status}) conf={conf:.3f} [{hits}/{total} frames]")
-        serial.send(f"VICTIM LETTER {letra}")
-    else:
-        colors_str = ",".join(result.get("colors", []))
-        print(f"  [VIT] Cognitive: {colors_str} sum={result.get('sum')} ({status}) conf={conf:.3f} [{hits}/{total} frames]")
-        serial.send(f"VICTIM COGNITIVE {status}")
-
-    # Sinaliza kit de resgate e aguarda depósito
-    serial.send("VC")
-    time.sleep(5)
+    print("VITIMA DETECTADA: {tipo}- {status}")
+    serial.send("LC {kits}")
+    time.sleep(6)
 
     # Regista no manager e no log local
     victim_manager.log_detection(pos, result)
