@@ -42,7 +42,7 @@ SCALES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.6]
 # Área mínima e máxima de contornos candidatos (pixels²)
 # Para 640x480 a ~15cm de distância, a letra de 4cm ocupa ~80-200px de lado
 MIN_CONTOUR_AREA = 400    # ~20x20 px
-MAX_CONTOUR_AREA = 80000  # ~280x280 px
+MAX_CONTOUR_AREA = 1000000 # Permitir deteção mesmo quando muito perto da câmara
 
 # Threshold de confiança para template matching
 DEFAULT_CONFIDENCE = 0.55
@@ -215,11 +215,12 @@ class LetterDetector:
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
 
         # Threshold adaptativo — lida com iluminação variável
+        # blockSize grande para evitar que traços grossos de letras grandes fiquem ocos
         binary = cv2.adaptiveThreshold(
             gray, 255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY,
-            blockSize=31,
+            blockSize=101,
             C=10,
         )
 
@@ -283,7 +284,12 @@ class LetterDetector:
             for rot_idx, tmpl in enumerate(rotated_templates):
                 tmpl_h, tmpl_w = tmpl.shape[:2]
 
-                for scale in SCALES:
+                # Calcular escalas dinâmicas baseadas no tamanho do ROI
+                # O ROI tem ~15% de margem, o template tem ~10% de margem.
+                base_scale = min(roi_w / (tmpl_w + 1e-5), roi_h / (tmpl_h + 1e-5))
+                dynamic_scales = [base_scale * 0.6, base_scale * 0.7, base_scale * 0.8, base_scale * 0.9, base_scale * 0.95]
+
+                for scale in dynamic_scales:
                     new_w = int(tmpl_w * scale)
                     new_h = int(tmpl_h * scale)
 
