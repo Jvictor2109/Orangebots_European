@@ -142,7 +142,7 @@ def turn_to(target_cardinal: int, serial, imu) -> bool:
     time.sleep(0.15)  # Deixa o robot estabilizar mecanicamente
 
     # ── 3. Verificação e correção fina com IMU ────────────────────────────────
-    _imu_fine_correction(target_angle, serial, imu)
+    # _imu_fine_correction(target_angle, serial, imu)
 
     # ── 4. Reset encoders após rotação (previne resíduos no move_forward) ─────
     serial.send("MZ")
